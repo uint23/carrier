@@ -1,0 +1,549 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Carrier</title>
+
+<style>
+body {
+    margin: 12px;
+    color: #eeeff1;
+    background: #1e1f21;
+    font-family: "Comic Sans MS", "Comic Sans", cursive, sans-serif;
+}
+
+button,
+input {
+    font: inherit;
+}
+
+button,
+input::file-selector-button {
+    padding: 0 3px;
+    border: none;
+    border-radius: 3px;
+    color: rgb(197, 177, 237);
+    background: none;
+}
+
+button:hover,
+input::file-selector-button:hover {
+    color: #1e1f21;
+    background: rgb(197, 177, 237);
+}
+
+button.active {
+    color: white;
+    background: #222;
+}
+
+#word {
+    padding: 4px 6px;
+    border: 1px solid #aaa;
+    border-radius: 3px;
+}
+</style>
+
+<input id="file" type="file" accept="image/*">
+<button id="box">Box</button>
+<button id="text">Text</button>
+<input id="word" placeholder="text" hidden>
+<button id="del" hidden>Delete</button>
+<button id="export">Export</button>
+<span id="info"></span>
+
+<br>
+<br>
+
+<svg id="svg" style="max-width: 100%; height: auto; border: 1px solid #aaa; display: none">
+    <image id="img"></image>
+    <g id="layer"></g>
+    <rect id="drag" fill="none" stroke="red" visibility="hidden"></rect>
+</svg>
+
+<script>
+var NS = "http://www.w3.org/2000/svg";
+
+var file = document.getElementById("file"),
+    box = document.getElementById("box"),
+    text = document.getElementById("text"),
+    word = document.getElementById("word"),
+    del = document.getElementById("del"),
+    exp = document.getElementById("export"),
+    info = document.getElementById("info"),
+    svg = document.getElementById("svg"),
+    img = document.getElementById("img"),
+    layer = document.getElementById("layer"),
+    drag = document.getElementById("drag");
+
+var boxes = [],
+    selected = -1,
+    mode = 0,
+    W = 0,
+    H = 0,
+    start = 0,
+    action = 0;
+
+function attrs(e, a, keys, i)
+{
+    if (!keys)
+        keys = Object.keys(a);
+
+    if (!i)
+        i = 0;
+
+    if (i == keys.length)
+        return e;
+
+    var key = keys[i];
+
+    if (key.substring(0, 2) == "on")
+        e[key] = a[key];
+    else
+        e.setAttribute(key, a[key]);
+
+    return attrs(e, a, keys, i + 1);
+}
+
+function node(parent, name, a, value)
+{
+    var e = document.createElementNS(NS, name);
+    attrs(e, a || {});
+
+    if (value != null)
+        e.textContent = value;
+
+    parent.appendChild(e);
+    return e;
+}
+
+function point(e)
+{
+    var p = svg.createSVGPoint();
+    p.x = e.clientX;
+    p.y = e.clientY;
+    return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+function center(b)
+{
+    return {
+        x: b.x + b.w / 2,
+        y: b.y + b.h / 2
+    };
+}
+
+function handle(g, b, sx, sy)
+{
+    var x = b.x + (sx + 1) * b.w / 2,
+        y = b.y + (sy + 1) * b.h / 2;
+    var size = Math.max(8, Math.min(b.w, b.h) * 0.12);
+
+    node(g, "rect", {
+        x: x - size / 2,
+        y: y - size / 2,
+        width: size,
+        height: size,
+        fill: "white",
+        stroke: "orange",
+        onmousedown: function(e)
+        {
+            e.stopPropagation();
+
+            var c = center(b),
+                a = b.a * Math.PI / 180,
+                ox = -sx * b.w / 2,
+                oy = -sy * b.h / 2;
+
+            action = {
+                t: 2,
+                sx: sx,
+                sy: sy,
+                a: a,
+                x: c.x + ox * Math.cos(a) - oy * Math.sin(a),
+                y: c.y + ox * Math.sin(a) + oy * Math.cos(a)
+            };
+        }
+    });
+}
+
+function handles(g, b, i)
+{
+    var corners = [
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1]
+    ];
+
+    if (i == corners.length)
+        return;
+
+    handle(g, b, corners[i][0], corners[i][1]);
+    handles(g, b, i + 1);
+}
+
+function draw_box(i)
+{
+    var b = boxes[i],
+        c = center(b);
+    var g = node(layer, "g", {
+        transform: "rotate(" + b.a + " " + c.x + " " + c.y + ")"
+    });
+
+    node(g, "rect", {
+        x: b.x,
+        y: b.y,
+        width: b.w,
+        height: b.h,
+        fill: i == selected ? "#ff03" : "#0f02",
+        stroke: i == selected ? "orange" : "green",
+        onmousedown: function(e)
+        {
+            e.stopPropagation();
+            selected = i;
+
+            var p = point(e);
+            action = {
+                t: 1,
+                x: p.x,
+                y: p.y,
+                bx: b.x,
+                by: b.y
+            };
+
+            draw();
+        }
+    });
+
+    if (b.t != "")
+        node(g, "text", {
+            x: b.x,
+            y: b.y + b.h,
+            "font-size": b.h,
+            textLength: b.w,
+            lengthAdjust: "spacingAndGlyphs",
+            fill: "#c008",
+            "pointer-events": "none"
+        }, b.t);
+
+    if (i != selected)
+        return;
+
+    handles(g, b, 0);
+
+    node(g, "line", {
+        x1: c.x,
+        y1: b.y,
+        x2: c.x,
+        y2: b.y - 25,
+        stroke: "orange"
+    });
+
+    node(g, "circle", {
+        cx: c.x,
+        cy: b.y - 25,
+        r: 7,
+        fill: "white",
+        stroke: "orange",
+        onmousedown: function(e)
+        {
+            e.stopPropagation();
+            action = {
+                t: 3
+            };
+        }
+    });
+}
+
+function draw_boxes(i)
+{
+    if (i == boxes.length)
+        return;
+
+    draw_box(i);
+    draw_boxes(i + 1);
+}
+
+function controls()
+{
+    var ok = selected >= 0;
+
+    del.hidden = !ok;
+    word.hidden = mode != 1 || !ok;
+    box.classList.toggle("active", mode == 0);
+    text.classList.toggle("active", mode == 1);
+
+    if (!word.hidden && document.activeElement != word)
+        word.value = boxes[selected].t;
+}
+
+function draw()
+{
+    layer.innerHTML = "";
+    draw_boxes(0);
+    info.textContent = boxes.length + " boxes";
+    controls();
+}
+
+function first_empty(i)
+{
+    if (i == boxes.length || boxes[i].t == "")
+        return i;
+
+    return first_empty(i + 1);
+}
+
+function set_mode(m)
+{
+    mode = m;
+
+    if (mode == 1 && boxes.length)
+        selected = Math.min(first_empty(0), boxes.length - 1);
+
+    draw();
+
+    if (!word.hidden)
+        word.focus();
+}
+
+function move(b, p)
+{
+    b.x = action.bx + p.x - action.x;
+    b.y = action.by + p.y - action.y;
+}
+
+function resize(b, p)
+{
+    var c = Math.cos(action.a),
+        s = Math.sin(action.a),
+        dx = p.x - action.x,
+        dy = p.y - action.y;
+
+    b.w = Math.max(5, action.sx * (dx * c + dy * s));
+    b.h = Math.max(5, action.sy * (-dx * s + dy * c));
+
+    var vx = action.sx * b.w / 2,
+        vy = action.sy * b.h / 2,
+        cx = action.x + vx * c - vy * s,
+        cy = action.y + vx * s + vy * c;
+
+    b.x = cx - b.w / 2;
+    b.y = cy - b.h / 2;
+}
+
+function rotate(b, p)
+{
+    var c = center(b);
+    b.a = Math.atan2(p.y - c.y, p.x - c.x) * 180 / Math.PI + 90;
+}
+
+function edit(p)
+{
+    var b = boxes[selected];
+
+    if (action.t == 1)
+        move(b, p);
+
+    if (action.t == 2)
+        resize(b, p);
+
+    if (action.t == 3)
+        rotate(b, p);
+
+    draw();
+}
+
+file.onchange = function()
+{
+    if (!file.files[0])
+        return;
+
+    var reader = new FileReader();
+
+    reader.onload = function()
+    {
+        var probe = new Image();
+
+        probe.onload = function()
+        {
+            W = probe.width;
+            H = probe.height;
+
+            attrs(svg, {
+                viewBox: "0 0 " + W + " " + H
+            });
+
+            attrs(img, {
+                href: reader.result,
+                width: W,
+                height: H
+            });
+
+            svg.style.display = "block";
+            boxes = [];
+            selected = -1;
+            draw();
+        };
+
+        probe.src = reader.result;
+    };
+
+    reader.readAsDataURL(file.files[0]);
+};
+
+svg.onmousedown = function(e)
+{
+    if (mode != 0 || (e.target != svg && e.target != img))
+        return;
+
+    start = point(e);
+
+    attrs(drag, {
+        x: start.x,
+        y: start.y,
+        width: 0,
+        height: 0,
+        visibility: "visible"
+    });
+};
+
+document.onmousemove = function(e)
+{
+    if (svg.style.display == "none")
+        return;
+
+    var p = point(e);
+
+    if (action && selected >= 0) {
+        edit(p);
+        return;
+    }
+
+    if (start)
+        attrs(drag, {
+            x: Math.min(start.x, p.x),
+            y: Math.min(start.y, p.y),
+            width: Math.abs(p.x - start.x),
+            height: Math.abs(p.y - start.y)
+        });
+};
+
+document.onmouseup = function(e)
+{
+    if (action) {
+        action = 0;
+        return;
+    }
+
+    if (!start)
+        return;
+
+    var p = point(e),
+        x = Math.min(start.x, p.x),
+        y = Math.min(start.y, p.y),
+        w = Math.abs(p.x - start.x),
+        h = Math.abs(p.y - start.y);
+
+    start = 0;
+    drag.setAttribute("visibility", "hidden");
+
+    if (w > 3 && h > 3) {
+        boxes.push({
+            x: x,
+            y: y,
+            w: w,
+            h: h,
+            a: 0,
+            t: ""
+        });
+
+        selected = boxes.length - 1;
+        draw();
+    }
+};
+
+word.oninput = function()
+{
+    boxes[selected].t = word.value;
+    draw();
+    word.focus();
+};
+
+word.onkeydown = function(e)
+{
+    if (e.key != "Enter")
+        return;
+
+    e.preventDefault();
+
+    if (selected == boxes.length - 1)
+        return;
+
+    selected++;
+    draw();
+    word.value = boxes[selected].t;
+    word.focus();
+};
+
+del.onclick = function()
+{
+    boxes.splice(selected, 1);
+    selected = Math.min(selected, boxes.length - 1);
+    draw();
+};
+
+box.onclick = function()
+{
+    set_mode(0);
+};
+
+text.onclick = function()
+{
+    set_mode(1);
+};
+
+function escape_text(s)
+{
+    return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;");
+}
+
+function out(i)
+{
+    if (i == boxes.length)
+        return "";
+
+    var b = boxes[i],
+        c = center(b);
+    var s = "";
+
+    if (b.t != "") {
+        s = '<text x="' + b.x +
+            '" y="' + (b.y + b.h) +
+            '" font-size="' + b.h +
+            '" textLength="' + b.w +
+            '" lengthAdjust="spacingAndGlyphs" transform="rotate(' +
+            b.a + ' ' + c.x + ' ' + c.y + ')">' +
+            escape_text(b.t) +
+            '</text>\n';
+    }
+
+    return s + out(i + 1);
+}
+
+exp.onclick = function()
+{
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="' + NS + '">\n' +
+        '<image href="hand.png" width="' + W + '" height="' + H + '"/>\n' +
+        '<g fill="black" fill-opacity=".001">\n' +
+        out(0) +
+        '</g>\n</svg>\n';
+
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([s], {
+        type: "text/html"
+    }));
+    a.download = "handwritten-page.html";
+    a.click();
+};
+
+set_mode(0);
+</script>
