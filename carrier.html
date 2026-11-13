@@ -7,7 +7,7 @@ body {
     margin: 12px;
     color: #eeeff1;
     background: #1e1f21;
-    font-family: "Comic Sans MS", "Comic Sans", cursive, sans-serif;
+    font-family: serif, sans-serif;
 }
 
 button,
@@ -30,6 +30,14 @@ input::file-selector-button:hover {
     background: rgb(197, 177, 237);
 }
 
+input {
+    padding: 4px 6px;
+    border: 1px solid #aaa;
+    border-radius: 3px;
+    background: #303235;
+    color: white;
+}
+
 button.active {
     color: white;
     background: #222;
@@ -39,10 +47,6 @@ button.active {
     padding: 4px 6px;
     border: 1px solid #aaa;
     border-radius: 3px;
-}
-#image-name {
-    color: white;
-    background: #303235;
 }
 #toolbar {
     display: flex;
@@ -101,8 +105,7 @@ var boxes = [],
     start = 0,
     action = 0;
 
-function attrs(e, a, keys, i)
-{
+function attrs(e, a, keys, i) {
     if (!keys)
         keys = Object.keys(a);
 
@@ -122,8 +125,7 @@ function attrs(e, a, keys, i)
     return attrs(e, a, keys, i + 1);
 }
 
-function node(parent, name, a, value)
-{
+function node(parent, name, a, value) {
     var e = document.createElementNS(NS, name);
     attrs(e, a || {});
 
@@ -134,24 +136,21 @@ function node(parent, name, a, value)
     return e;
 }
 
-function point(e)
-{
+function point(e) {
     var p = svg.createSVGPoint();
     p.x = e.clientX;
     p.y = e.clientY;
     return p.matrixTransform(svg.getScreenCTM().inverse());
 }
 
-function center(b)
-{
+function center(b) {
     return {
         x: b.x + b.w / 2,
         y: b.y + b.h / 2
     };
 }
 
-function handle(g, b, sx, sy)
-{
+function handle(g, b, sx, sy) {
     var x = b.x + (sx + 1) * b.w / 2,
         y = b.y + (sy + 1) * b.h / 2;
     var size = 10 / Math.hypot(svg.getScreenCTM().a, svg.getScreenCTM().b);
@@ -163,8 +162,7 @@ function handle(g, b, sx, sy)
         height: size,
         fill: "white",
         stroke: "orange",
-        onmousedown: function(e)
-        {
+        onmousedown: function(e) {
             e.stopPropagation();
 
             var c = center(b),
@@ -184,8 +182,7 @@ function handle(g, b, sx, sy)
     });
 }
 
-function handles(g, b, i)
-{
+function handles(g, b, i) {
     var corners = [
         [-1, -1],
         [1, -1],
@@ -200,8 +197,7 @@ function handles(g, b, i)
     handles(g, b, i + 1);
 }
 
-function draw_box(i)
-{
+function draw_box(i) {
     var b = boxes[i],
         c = center(b);
     var g = node(layer, "g", {
@@ -215,8 +211,7 @@ function draw_box(i)
         height: b.h,
         fill: i == selected ? "#ff03" : "#0f02",
         stroke: i == selected ? "orange" : "green",
-        onmousedown: function(e)
-        {
+        onmousedown: function(e) {
             e.stopPropagation();
             selected = i;
 
@@ -263,8 +258,7 @@ function draw_box(i)
         r: 7,
         fill: "white",
         stroke: "orange",
-        onmousedown: function(e)
-        {
+        onmousedown: function(e) {
             e.stopPropagation();
             action = {
                 t: 3
@@ -273,8 +267,7 @@ function draw_box(i)
     });
 }
 
-function draw_boxes(i)
-{
+function draw_boxes(i) {
     if (i == boxes.length)
         return;
 
@@ -282,8 +275,7 @@ function draw_boxes(i)
     draw_boxes(i + 1);
 }
 
-function controls()
-{
+function controls() {
     var ok = selected >= 0;
 
     del.hidden = !ok;
@@ -299,24 +291,21 @@ function controls()
         url.value = boxes[selected].url || "";
 }
 
-function draw()
-{
+function draw() {
     layer.innerHTML = "";
     draw_boxes(0);
     info.textContent = boxes.length + " boxes";
     controls();
 }
 
-function first_empty(i)
-{
+function first_empty(i) {
     if (i == boxes.length || boxes[i].t == "")
         return i;
 
     return first_empty(i + 1);
 }
 
-function set_mode(m)
-{
+function set_mode(m) {
     mode = m;
 
     if (mode == 1 && boxes.length)
@@ -328,14 +317,12 @@ function set_mode(m)
         word.focus();
 }
 
-function move(b, p)
-{
+function move(b, p) {
     b.x = action.bx + p.x - action.x;
     b.y = action.by + p.y - action.y;
 }
 
-function resize(b, p)
-{
+function resize(b, p) {
     var c = Math.cos(action.a),
         s = Math.sin(action.a),
         dx = p.x - action.x,
@@ -353,14 +340,12 @@ function resize(b, p)
     b.y = cy - b.h / 2;
 }
 
-function rotate(b, p)
-{
+function rotate(b, p) {
     var c = center(b);
     b.a = Math.atan2(p.y - c.y, p.x - c.x) * 180 / Math.PI + 90;
 }
 
-function edit(p)
-{
+function edit(p) {
     var b = boxes[selected];
 
     if (action.t == 1)
@@ -375,13 +360,11 @@ function edit(p)
     draw();
 }
 
-choose.onclick = function()
-{
+choose.onclick = function() {
     file.click();
 };
 
-file.onchange = function()
-{
+file.onchange = function() {
     if (!file.files[0])
         return;
 
@@ -389,12 +372,10 @@ file.onchange = function()
 
     var reader = new FileReader();
 
-    reader.onload = function()
-    {
+    reader.onload = function() {
         var probe = new Image();
 
-        probe.onload = function()
-        {
+        probe.onload = function() {
             W = probe.width;
             H = probe.height;
 
@@ -420,8 +401,7 @@ file.onchange = function()
     reader.readAsDataURL(file.files[0]);
 };
 
-svg.onmousedown = function(e)
-{
+svg.onmousedown = function(e) {
     if (mode != 0 || (e.target != svg && e.target != img))
         return;
 
@@ -436,8 +416,7 @@ svg.onmousedown = function(e)
     });
 };
 
-document.onmousemove = function(e)
-{
+document.onmousemove = function(e) {
     if (svg.style.display == "none")
         return;
 
@@ -457,8 +436,7 @@ document.onmousemove = function(e)
         });
 };
 
-document.onmouseup = function(e)
-{
+document.onmouseup = function(e) {
     if (action) {
         action = 0;
         return;
@@ -492,20 +470,17 @@ document.onmouseup = function(e)
     }
 };
 
-url.oninput = function()
-{
+url.oninput = function() {
     boxes[selected].url = url.value;
 };
 
-word.oninput = function()
-{
+word.oninput = function() {
     boxes[selected].t = word.value;
     draw();
     word.focus();
 };
 
-word.onkeydown = function(e)
-{
+word.onkeydown = function(e) {
     if (e.key != "Enter")
         return;
 
@@ -520,30 +495,25 @@ word.onkeydown = function(e)
     word.focus();
 };
 
-del.onclick = function()
-{
+del.onclick = function() {
     boxes.splice(selected, 1);
     selected = Math.min(selected, boxes.length - 1);
     draw();
 };
 
-box.onclick = function()
-{
+box.onclick = function() {
     set_mode(0);
 };
 
-text.onclick = function()
-{
+text.onclick = function() {
     set_mode(1);
 };
 
-function escape_text(s)
-{
+function escape_text(s) {
     return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;");
 }
 
-function out(i)
-{
+function out(i) {
     if (i == boxes.length)
         return "";
 
@@ -574,8 +544,7 @@ function out(i)
     return s + out(i + 1);
 }
 
-exp.onclick = function()
-{
+exp.onclick = function() {
     var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="' + NS + '">\n' +
         '<image href="' + escape_text(imageName.value).replaceAll('"', '&quot;') +
         '" width="' + W + '" height="' + H + '"/>\n' +
