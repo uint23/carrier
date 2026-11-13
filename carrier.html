@@ -271,7 +271,7 @@ function controls()
 
     del.hidden = !ok;
     word.hidden = mode != 1 || !ok;
-    url.hidden = !ok;
+    url.hidden = mode != 1 || !ok;
     box.classList.toggle("active", mode == 0);
     text.classList.toggle("active", mode == 1);
 
