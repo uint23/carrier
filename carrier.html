@@ -35,7 +35,7 @@ button.active {
     background: #222;
 }
 
-#word {
+#word, #url {
     padding: 4px 6px;
     border: 1px solid #aaa;
     border-radius: 3px;
@@ -46,6 +46,7 @@ button.active {
 <button id="box">Box</button>
 <button id="text">Text</button>
 <input id="word" placeholder="text" hidden>
+<input id="url" placeholder="link URL" hidden>
 <button id="del" hidden>Delete</button>
 <button id="export">Export</button>
 <span id="info"></span>
@@ -66,6 +67,7 @@ var file = document.getElementById("file"),
     box = document.getElementById("box"),
     text = document.getElementById("text"),
     word = document.getElementById("word"),
+    url = document.getElementById("url"),
     del = document.getElementById("del"),
     exp = document.getElementById("export"),
     info = document.getElementById("info"),
@@ -135,7 +137,7 @@ function handle(g, b, sx, sy)
 {
     var x = b.x + (sx + 1) * b.w / 2,
         y = b.y + (sy + 1) * b.h / 2;
-    var size = Math.max(8, Math.min(b.w, b.h) * 0.12);
+    var size = 10 / Math.hypot(svg.getScreenCTM().a, svg.getScreenCTM().b);
 
     node(g, "rect", {
         x: x - size / 2,
@@ -269,11 +271,15 @@ function controls()
 
     del.hidden = !ok;
     word.hidden = mode != 1 || !ok;
+    url.hidden = !ok;
     box.classList.toggle("active", mode == 0);
     text.classList.toggle("active", mode == 1);
 
     if (!word.hidden && document.activeElement != word)
         word.value = boxes[selected].t;
+
+    if (!url.hidden && document.activeElement != url)
+        url.value = boxes[selected].url || "";
 }
 
 function draw()
@@ -453,12 +459,18 @@ document.onmouseup = function(e)
             w: w,
             h: h,
             a: 0,
-            t: ""
+            t: "",
+            url: ""
         });
 
         selected = boxes.length - 1;
         draw();
     }
+};
+
+url.oninput = function()
+{
+    boxes[selected].url = url.value;
 };
 
 word.oninput = function()
@@ -526,6 +538,15 @@ function out(i)
             '</text>\n';
     }
 
+    if (b.url && !/^(javascript|data|vbscript):/i.test(b.url.trim())) {
+        s = '<a href="' + escape_text(b.url).replaceAll('"', '&quot;') + '">\n' +
+            '<rect x="' + b.x + '" y="' + b.y +
+            '" width="' + b.w + '" height="' + b.h +
+            '" transform="rotate(' + b.a + ' ' + c.x + ' ' + c.y +
+            ')" fill="transparent" pointer-events="all" cursor="pointer"/>\n' +
+            s + '</a>\n';
+    }
+
     return s + out(i + 1);
 }
 
@@ -547,3 +568,4 @@ exp.onclick = function()
 
 set_mode(0);
 </script>
+
