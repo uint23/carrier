@@ -61,6 +61,8 @@ button.active {
 <input id="file" type="file" accept="image/*" hidden>
 <button id="choose">Choose File</button>
 <input id="image-name" placeholder="Image name">
+<input id="html-file" type="file" accept=".html,.htm,text/html" hidden>
+<button id="load-html">Load HTML</button>
 <button id="box">Box</button>
 <button id="text">Text</button>
 <input id="word" placeholder="text" hidden>
@@ -85,6 +87,8 @@ var NS = "http://www.w3.org/2000/svg";
 var file = document.getElementById("file"),
     choose = document.getElementById("choose"),
     imageName = document.getElementById("image-name"),
+    htmlFile = document.getElementById("html-file"),
+    loadHTML = document.getElementById("load-html"),
     box = document.getElementById("box"),
     text = document.getElementById("text"),
     word = document.getElementById("word"),
@@ -102,6 +106,7 @@ var boxes = [],
     mode = 0,
     W = 0,
     H = 0,
+    expectedImage = null,
     start = 0,
     action = 0;
 
@@ -360,15 +365,136 @@ function edit(p) {
     draw();
 }
 
+function imported_box(shape, label, link) {
+    var isText = shape.localName == "text",
+        x = Number(shape.getAttribute("x")),
+        y = Number(shape.getAttribute("y")),
+        w = Number(shape.getAttribute(isText ? "textLength" : "width")),
+        h = Number(shape.getAttribute(isText ? "font-size" : "height")),
+        rotation = (shape.getAttribute("transform") || "").match(/rotate\(\s*([-+\d.eE]+)/),
+        a = rotation ? Number(rotation[1]) : 0;
+
+    if (isText)
+        y -= h;
+
+    if (![x, y, w, h, a].every(Number.isFinite) || w <= 0 || h <= 0)
+        return null;
+
+    return {
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+        a: a,
+        t: label ? label.textContent : "",
+        url: link || ""
+    };
+}
+
+function import_boxes(parent, result) {
+    for (var i = 0; i < parent.children.length; i++) {
+        var child = parent.children[i],
+            name = child.localName,
+            b = null;
+
+        if (name == "a") {
+            var rect = child.querySelector("rect"),
+                label = child.querySelector("text"),
+                link = child.getAttribute("href") ||
+                    child.getAttributeNS("http://www.w3.org/1999/xlink", "href") || "";
+
+            if (rect || label)
+                b = imported_box(rect || label, label, link);
+        } else if (name == "text") {
+            b = imported_box(child, child, "");
+        } else if (name == "g") {
+            import_boxes(child, result);
+        }
+
+        if (b)
+            result.push(b);
+    }
+}
+
+function import_html(source) {
+    var doc = new DOMParser().parseFromString(source, "text/html"),
+        page = doc.querySelector("svg"),
+        background = page && page.querySelector("image");
+
+    if (!background) {
+        info.textContent = "No carrier image found in HTML";
+        return;
+    }
+
+    var view = (page.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+
+    if (view.length != 4 || view[0] != 0 || view[1] != 0 ||
+        !Number.isFinite(view[2]) || !Number.isFinite(view[3]) ||
+        view[2] <= 0 || view[3] <= 0) {
+        info.textContent = "Invalid carrier SVG viewBox";
+        return;
+    }
+
+    var imported = [];
+    import_boxes(page, imported);
+    boxes = imported;
+    selected = -1;
+    start = 0;
+    action = 0;
+    drag.setAttribute("visibility", "hidden");
+
+    if (W != view[2] || H != view[3]) {
+        W = 0;
+        H = 0;
+        expectedImage = { w: view[2], h: view[3] };
+        imageName.value = background.getAttribute("href") || "";
+        img.removeAttribute("href");
+        svg.style.display = "none";
+    }
+
+    draw();
+
+    if (expectedImage)
+        info.textContent = boxes.length + " boxes loaded; choose source image (" +
+            expectedImage.w + " x " + expectedImage.h + ")";
+}
+
+loadHTML.onclick = function() {
+    htmlFile.click();
+};
+
+htmlFile.onchange = function() {
+    var selectedFile = htmlFile.files[0];
+
+    if (!selectedFile)
+        return;
+
+    htmlFile.value = "";
+
+    var reader = new FileReader();
+
+    reader.onload = function() {
+        import_html(reader.result);
+    };
+
+    reader.onerror = function() {
+        info.textContent = "Could not read HTML file";
+    };
+
+    reader.readAsText(selectedFile);
+};
+
 choose.onclick = function() {
     file.click();
 };
 
 file.onchange = function() {
-    if (!file.files[0])
+    var selectedFile = file.files[0];
+
+    if (!selectedFile)
         return;
 
-    imageName.value = file.files[0].name;
+    file.value = "";
 
     var reader = new FileReader();
 
@@ -376,8 +502,16 @@ file.onchange = function() {
         var probe = new Image();
 
         probe.onload = function() {
+            if (expectedImage && (probe.width != expectedImage.w ||
+                probe.height != expectedImage.h)) {
+                info.textContent = "Wrong image size: expected " + expectedImage.w +
+                    " x " + expectedImage.h;
+                return;
+            }
+
             W = probe.width;
             H = probe.height;
+            imageName.value = selectedFile.name;
 
             attrs(svg, {
                 viewBox: "0 0 " + W + " " + H
@@ -390,15 +524,20 @@ file.onchange = function() {
             });
 
             svg.style.display = "block";
-            boxes = [];
-            selected = -1;
+
+            if (!expectedImage) {
+                boxes = [];
+                selected = -1;
+            }
+
+            expectedImage = null;
             draw();
         };
 
         probe.src = reader.result;
     };
 
-    reader.readAsDataURL(file.files[0]);
+    reader.readAsDataURL(selectedFile);
 };
 
 svg.onmousedown = function(e) {
