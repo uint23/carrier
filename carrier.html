@@ -59,10 +59,10 @@ button.active {
 
 <div id="toolbar">
 <input id="file" type="file" accept="image/*" hidden>
-<button id="choose">Choose File</button>
-<input id="image-name" placeholder="Image name">
+<button id="choose">Image</button>
 <input id="html-file" type="file" accept=".html,.htm,text/html" hidden>
-<button id="load-html">Load HTML</button>
+<button id="load-html">HTML</button>
+<input id="image-name" placeholder="Image name">
 <button id="box">Box</button>
 <button id="text">Text</button>
 <input id="word" placeholder="text" hidden>
@@ -514,6 +514,8 @@ file.onchange = function() {
             imageName.value = selectedFile.name;
 
             attrs(svg, {
+                width: W,
+                height: H,
                 viewBox: "0 0 " + W + " " + H
             });
 
@@ -676,7 +678,7 @@ function out(i) {
             '<rect x="' + b.x + '" y="' + b.y +
             '" width="' + b.w + '" height="' + b.h +
             '" transform="rotate(' + b.a + ' ' + c.x + ' ' + c.y +
-            ')" fill="transparent" pointer-events="all" cursor="pointer"/>\n' +
+            ')" fill="transparent" pointer-events="all"/>\n' +
             s + '</a>\n';
     }
 
@@ -684,7 +686,8 @@ function out(i) {
 }
 
 exp.onclick = function() {
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="' + NS + '">\n' +
+    var s = '<svg width="' + W + '" height="' + H +
+        '" viewBox="0 0 ' + W + ' ' + H + '" xmlns="' + NS + '">\n' +
         '<image href="' + escape_text(imageName.value).replaceAll('"', '&quot;') +
         '" width="' + W + '" height="' + H + '"/>\n' +
         '<g fill="black" fill-opacity=".001">\n' +
